@@ -89,6 +89,7 @@ header {
   margin-bottom: 40px;
   padding-bottom: 24px;
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .logo {
@@ -125,8 +126,9 @@ header {
 .header-right {
   margin-left: auto;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 /* ── Layout ── */
@@ -140,6 +142,24 @@ header {
 @media (max-width: 720px) {
   .layout { grid-template-columns: 1fr; }
 }
+
+/* ── Mobile ── */
+@media (max-width: 600px) {
+  .app { padding: 18px 12px 80px; }
+  header { margin-bottom: 22px; gap: 10px; }
+  .header-right { margin-left: 0; width: 100%; }
+  .header-right .btn { flex: 1; justify-content: center; font-size: 11px; padding: 8px 8px; }
+  .logo-sub { display: none; }
+  .modal { padding: 20px 16px; }
+  .modal-title { font-size: 17px; }
+  .code-block { font-size: 10px; padding: 10px 12px; }
+  #detailSummary { grid-template-columns: repeat(2, 1fr) !important; }
+  .hourly-table th:nth-child(5),
+  .hourly-table th:nth-child(6),
+  .hourly-table td:nth-child(5),
+  .hourly-table td:nth-child(6) { display: none; }
+}
+
 
 /* ── Panel ── */
 .panel {
@@ -863,13 +883,13 @@ input::placeholder { color: var(--text-dim); }
     <div class="label" style="margin-bottom:8px;">① Secrets a configurar en GitHub</div>
     <div class="code-block" id="exportSecrets"></div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
       <div class="label" style="margin-bottom:0">② Archivo: <code style="color:var(--accent)">.github/workflows/rainwatch.yml</code></div>
       <button class="btn btn-ghost btn-sm" onclick="copyText(buildWorkflow(), 'rainwatch.yml')">⎘ Copiar</button>
     </div>
     <div class="code-block" id="exportWorkflow"></div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
       <div class="label" style="margin-bottom:0">③ Archivo: <code style="color:var(--accent)">.github/scripts/check-rain.js</code></div>
       <button class="btn btn-ghost btn-sm" onclick="copyText(buildScript(), 'check-rain.js')">⎘ Copiar</button>
     </div>
