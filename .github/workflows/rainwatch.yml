@@ -2,12 +2,14 @@ name: RainWatch Daily Alert
 
 on:
   schedule:
-    - cron: '0 20 * * *'  # 20:00 UTC (Canarias invierno=UTC, verano=UTC+1)
-  workflow_dispatch:   # Permite ejecutar manualmente desde GitHub
+    - cron: '0 8 * * *'  # Ajusta la hora en UTC (8:00 UTC = 9:00 Canarias invierno / 8:00 verano)
+  workflow_dispatch:      # Permite ejecutar manualmente desde GitHub
 
 jobs:
   check-rain:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -15,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Check rain and notify Telegram
         env:
