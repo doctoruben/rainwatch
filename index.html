@@ -113,7 +113,7 @@ header {
 /* ── Layout ── */
 .layout {
   display: grid;
-  grid-template-columns: 310px 1fr;
+  grid-template-columns: 1fr 310px;
   gap: 18px;
   align-items: start;
 }
@@ -641,7 +641,24 @@ input::placeholder { color: var(--text-dim); }
 
   <div class="layout">
 
-    <!-- Left: Config -->
+    <!-- Left: Weather preview -->
+    <div class="panel" style="min-height:400px;">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--green)"></div>
+        <div class="panel-title">Previsión mañana</div>
+        <div style="margin-left:auto;">
+          <span id="statusDot" class="status-dot"></span>
+        </div>
+      </div>
+      <div id="weatherContainer" style="padding:18px;">
+        <div class="empty-state">
+          <div class="empty-state-icon">⛅</div>
+          <div class="empty-state-text">Añade municipios para ver la previsión</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Config -->
     <div style="display:flex;flex-direction:column;gap:18px;">
 
       <!-- Municipios -->
@@ -708,23 +725,6 @@ input::placeholder { color: var(--text-dim); }
         </div>
       </div>
 
-    </div>
-
-    <!-- Right: Weather preview -->
-    <div class="panel" style="min-height:400px;">
-      <div class="panel-header">
-        <div class="panel-dot" style="background:var(--green)"></div>
-        <div class="panel-title">Previsión mañana</div>
-        <div style="margin-left:auto;">
-          <span id="statusDot" class="status-dot"></span>
-        </div>
-      </div>
-      <div id="weatherContainer" style="padding:18px;">
-        <div class="empty-state">
-          <div class="empty-state-icon">⛅</div>
-          <div class="empty-state-text">Añade municipios para ver la previsión</div>
-        </div>
-      </div>
     </div>
 
   </div>
