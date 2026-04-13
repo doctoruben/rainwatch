@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RainWatch — Alertas de Lluvia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c1219;
+  --surface: #111820;
+  --surface2: #17202c;
+  --surface3: #1d2a38;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.1);
+  --text: #dde6f0;
+  --text-muted: #607080;
+  --text-dim: #2d3d50;
+  --accent: #4a9fd4;
+  --accent-soft: rgba(74,159,212,0.12);
+  --accent-glow: rgba(74,159,212,0.25);
+  --green: #4db88a;
+  --green-soft: rgba(77,184,138,0.12);
+  --amber: #d4a44a;
+  --amber-soft: rgba(212,164,74,0.12);
+  --red: #d46a4a;
+  --red-soft: rgba(212,106,74,0.12);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-xs: 5px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(74,159,212,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,159,212,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 36px 24px 100px;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 40px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px;
+  color: var(--text);
+  letter-spacing: -0.4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 34px; height: 34px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-glow);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+
+.logo span { color: var(--accent); }
+
+.logo-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 300;
+  margin-top: 2px;
+}
+
+.header-right {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ── Layout ── */
+.layout {
+  display: grid;
+  grid-template-columns: 310px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+/* ── Panel ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.panel-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.6;
+}
+
+.panel-body { padding: 18px; }
+
+/* ── Inputs ── */
+.field { margin-bottom: 16px; }
+.field:last-child { margin-bottom: 0; }
+
+.label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 7px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="time"],
+input[type="password"] {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+  -webkit-appearance: none;
+}
+
+input:focus {
+  border-color: var(--accent);
+  background: var(--surface3);
+}
+
+input::placeholder { color: var(--text-dim); }
+
+.input-with-unit {
+  position: relative;
+}
+.input-with-unit input { padding-right: 36px; }
+.input-unit {
+  position: absolute;
+  right: 12px; top: 50%;
+  transform: translateY(-50%);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ── Autocomplete ── */
+.autocomplete-wrap { position: relative; }
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.autocomplete-dropdown.open { display: block; }
+
+.autocomplete-dropdown::-webkit-scrollbar { width: 4px; }
+.autocomplete-dropdown::-webkit-scrollbar-track { background: transparent; }
+.autocomplete-dropdown::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.ac-item {
+  padding: 9px 13px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+  font-size: 13px;
+}
+
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.selected { background: var(--accent-soft); color: var(--accent); }
+
+.ac-item-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* ── Municipality list ── */
+.muni-list { margin-top: 14px; }
+
+.muni-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  transition: border-color 0.15s;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.muni-item:hover { border-color: var(--border2); }
+
+.muni-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.muni-coords {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.muni-remove {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.muni-remove:hover { color: var(--red); background: var(--red-soft); }
+
+.muni-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 20px 0;
+  font-family: 'DM Mono', monospace;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #0c1219;
+}
+.btn-primary:hover { background: #5db0e8; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-ghost {
+  background: var(--surface2);
+  color: var(--text-muted);
+  border: 1px solid var(--border2);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); background: var(--surface3); }
+
+.btn-sm { padding: 7px 12px; font-size: 12px; }
+
+.btn-full { width: 100%; justify-content: center; }
+
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ── Weather cards ── */
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.weather-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  animation: fadeUp 0.3s ease both;
+  transition: border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.weather-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--card-accent, var(--accent));
+  opacity: 0.6;
+}
+
+.weather-card.alert-card { --card-accent: var(--red); border-color: rgba(212,106,74,0.2); }
+.weather-card.ok-card { --card-accent: var(--green); }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-muni {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-emoji { font-size: 28px; margin-bottom: 10px; display: block; }
+
+.card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.card-stats { display: flex; flex-direction: column; gap: 6px; }
+
+.stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rain-bar {
+  height: 3px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.rain-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+  background: var(--bar-color, var(--accent));
+}
+
+.rain-pct {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+.rain-pct-label { font-size: 10px; color: var(--text-dim); font-family: 'DM Mono', monospace; }
+.rain-pct-value { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; }
+
+/* ── Alert badge ── */
+.alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid rgba(212,106,74,0.25);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 10px;
+}
+
+.ok-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid rgba(77,184,138,0.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 10px;
+}
+
+/* ── Status bar ── */
+.status-bar {
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+.status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+.status-dot.error { background: var(--red); }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  text-align: center;
+  gap: 10px;
+}
+
+.empty-state-icon { font-size: 36px; opacity: 0.4; }
+.empty-state-text { font-size: 13px; font-family: 'DM Mono', monospace; }
+
+/* ── Export modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 28px;
+  max-width: 560px;
+  width: 100%;
+  transform: translateY(10px);
+  transition: transform 0.2s;
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+
+.modal-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+.modal-sub { color: var(--text-muted); font-size: 12px; margin-bottom: 20px; line-height: 1.5; }
+
+.code-block {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: #a8c7e8;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.7;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ── Divider ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 18px 0;
+}
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 13px;
+  color: var(--text);
+  z-index: 300;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.25s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: rgba(77,184,138,0.4); }
+.toast.error { border-color: rgba(212,106,74,0.4); }
+
+/* ── Scrollbar global ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.gap-10 { display: flex; gap: 10px; }
+.mt-12 { margin-top: 12px; }
+.password-wrap { position: relative; }
+.password-wrap input { padding-right: 44px; }
+.toggle-pw {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 14px;
+  transition: color 0.15s;
+}
+.toggle-pw:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <div class="logo">
+        <div class="logo-icon">🌧</div>
+        Rain<span>Watch</span>
+      </div>
+      <div class="logo-sub">Alertas de lluvia · Open-Meteo + Telegram</div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-ghost btn-sm" onclick="checkNow()">
+        ↻ Actualizar
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="openExportModal()">
+        ⬡ Exportar para GitHub Actions
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- Left: Config -->
+    <div style="display:flex;flex-direction:column;gap:18px;">
+
+      <!-- Municipios -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-dot"></div>
+          <div class="panel-title">Municipios</div>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label class="label">Añadir municipio</label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="muniInput" placeholder="Escribe un municipio..." autocomplete="off">
+              <div class="autocomplete-dropdown" id="acDropdown"></div>
+            </div>
+          </div>
+          <div class="muni-list" id="muniList"></div>
+        </div>
+      </div>
+
+      <!-- Configuración de alertas -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-dot" style="background:var(--amber)"></div>
+          <div class="panel-title">Alertas</div>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label class="label">Umbral de lluvia</label>
+            <div class="input-with-unit">
+              <input type="number" id="threshold" min="0" max="100" value="20" oninput="saveConfig(); checkNow()">
+              <span class="input-unit">%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Hora de envío diario</label>
+            <input type="time" id="sendTime" value="08:00" oninput="saveConfig()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Telegram -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-dot" style="background:var(--accent)"></div>
+          <div class="panel-title">Telegram</div>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label class="label">Bot Token</label>
+            <div class="password-wrap">
+              <input type="password" id="tgToken" placeholder="1234567890:AAE..." oninput="saveConfig()">
+              <button class="toggle-pw" onclick="togglePw('tgToken',this)">👁</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Chat ID</label>
+            <input type="text" id="tgChatId" placeholder="526585085" oninput="saveConfig()">
+          </div>
+          <div class="divider"></div>
+          <button class="btn btn-ghost btn-full btn-sm" onclick="testTelegram()">
+            ✈ Enviar mensaje de prueba
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Weather preview -->
+    <div class="panel" style="min-height:400px;">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--green)"></div>
+        <div class="panel-title">Previsión mañana</div>
+        <div style="margin-left:auto;">
+          <span id="statusDot" class="status-dot"></span>
+        </div>
+      </div>
+      <div id="weatherContainer" style="padding:18px;">
+        <div class="empty-state">
+          <div class="empty-state-icon">⛅</div>
+          <div class="empty-state-text">Añade municipios para ver la previsión</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportModal" onclick="closeExportModal(event)">
+  <div class="modal">
+    <div class="modal-title">Configuración para GitHub Actions</div>
+    <div class="modal-sub">
+      Crea un repositorio en GitHub y añade estos <strong>Secrets</strong> en
+      Settings → Secrets → Actions. Luego copia el archivo del workflow.
+    </div>
+
+    <div class="label" style="margin-bottom:8px;">Secrets a configurar</div>
+    <div class="code-block" id="exportSecrets"></div>
+
+    <div class="label" style="margin-bottom:8px;">Archivo: <code style="color:var(--accent)">.github/workflows/rainwatch.yml</code></div>
+    <div class="code-block" id="exportWorkflow"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="copyExport()">⎘ Copiar workflow</button>
+      <button class="btn btn-primary btn-sm" onclick="closeExportModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+
+// Open-Meteo weather code descriptions
+const WMO = {
+  0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
+  45:'Niebla',48:'Niebla helada',51:'Llovizna ligera',53:'Llovizna',55:'Llovizna densa',
+  61:'Lluvia ligera',63:'Lluvia',65:'Lluvia intensa',71:'Nevada ligera',73:'Nevada',
+  75:'Nevada intensa',80:'Chubascos ligeros',81:'Chubascos',82:'Chubascos fuertes',
+  85:'Nieve ligera',86:'Nieve intensa',95:'Tormenta',96:'Tormenta con granizo',99:'Tormenta intensa con granizo'
+};
+
+const WMO_EMOJI = {
+  0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',
+  51:'🌦',53:'🌦',55:'🌧',61:'🌧',63:'🌧',65:'🌧',
+  71:'❄️',73:'❄️',75:'❄️',80:'🌦',81:'🌧',82:'⛈',
+  85:'🌨',86:'🌨',95:'⛈',96:'⛈',99:'⛈'
+};
+
+function getEmoji(code) { return WMO_EMOJI[code] || '🌡'; }
+function getDesc(code) { return WMO[code] || 'Desconocido'; }
+
+// ═══════════════════════════════════════════════════════
+//  STORAGE
+// ═══════════════════════════════════════════════════════
+let config = {
+  municipalities: [],
+  threshold: 20,
+  sendTime: '08:00',
+  tgToken: '',
+  tgChatId: ''
+};
+
+function loadConfig() {
+  const saved = localStorage.getItem('rainwatch_config');
+  if (saved) {
+    try { config = { ...config, ...JSON.parse(saved) }; } catch(e) {}
+  }
+  document.getElementById('threshold').value = config.threshold;
+  document.getElementById('sendTime').value = config.sendTime;
+  document.getElementById('tgToken').value = config.tgToken;
+  document.getElementById('tgChatId').value = config.tgChatId;
+  renderMuniList();
+}
+
+function saveConfig() {
+  config.threshold = parseInt(document.getElementById('threshold').value) || 20;
+  config.sendTime = document.getElementById('sendTime').value;
+  config.tgToken = document.getElementById('tgToken').value.trim();
+  config.tgChatId = document.getElementById('tgChatId').value.trim();
+  localStorage.setItem('rainwatch_config', JSON.stringify(config));
+}
+
+// ═══════════════════════════════════════════════════════
+//  MUNICIPALITIES
+// ═══════════════════════════════════════════════════════
+let acData = []; // [{name, province, lat, lon}]
+
+// Load Spanish municipalities from Open-Meteo geocoding
+async function searchMunicipalities(query) {
+  if (query.length < 2) return [];
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=8&language=es&country_code=ES`;
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d.results) return [];
+    return d.results.map(r => ({
+      name: r.name,
+      province: r.admin2 || r.admin1 || '',
+      lat: r.latitude,
+      lon: r.longitude,
+      id: `${r.name}_${r.latitude}_${r.longitude}`
+    }));
+  } catch(e) { return []; }
+}
+
+let acTimeout = null;
+const muniInput = document.getElementById('muniInput');
+const acDropdown = document.getElementById('acDropdown');
+let acResults = [];
+let acIndex = -1;
+
+muniInput.addEventListener('input', () => {
+  clearTimeout(acTimeout);
+  const q = muniInput.value.trim();
+  if (!q) { acDropdown.classList.remove('open'); return; }
+  acTimeout = setTimeout(async () => {
+    acResults = await searchMunicipalities(q);
+    renderDropdown();
+  }, 280);
+});
+
+muniInput.addEventListener('keydown', (e) => {
+  if (!acDropdown.classList.contains('open')) return;
+  if (e.key === 'ArrowDown') { acIndex = Math.min(acIndex+1, acResults.length-1); renderDropdown(true); e.preventDefault(); }
+  if (e.key === 'ArrowUp')   { acIndex = Math.max(acIndex-1, 0); renderDropdown(true); e.preventDefault(); }
+  if (e.key === 'Enter' && acIndex >= 0) { selectMuni(acResults[acIndex]); e.preventDefault(); }
+  if (e.key === 'Escape') acDropdown.classList.remove('open');
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.autocomplete-wrap')) acDropdown.classList.remove('open');
+});
+
+function renderDropdown(keepIndex = false) {
+  if (!keepIndex) acIndex = -1;
+  if (!acResults.length) { acDropdown.classList.remove('open'); return; }
+  acDropdown.innerHTML = acResults.map((m, i) =>
+    `<div class="ac-item ${i===acIndex?'selected':''}" onclick="selectMuni(acResults[${i}])">
+      <div>${m.name}</div>
+      <div class="ac-item-sub">${m.province}</div>
+    </div>`
+  ).join('');
+  acDropdown.classList.add('open');
+}
+
+function selectMuni(m) {
+  if (config.municipalities.find(x => x.id === m.id)) {
+    showToast('El municipio ya está en la lista', 'error'); return;
+  }
+  config.municipalities.push(m);
+  saveConfig();
+  renderMuniList();
+  muniInput.value = '';
+  acDropdown.classList.remove('open');
+  checkNow();
+}
+
+function removeMuni(id) {
+  config.municipalities = config.municipalities.filter(m => m.id !== id);
+  saveConfig();
+  renderMuniList();
+  checkNow();
+}
+
+function renderMuniList() {
+  const el = document.getElementById('muniList');
+  if (!config.municipalities.length) {
+    el.innerHTML = '<div class="muni-empty">Sin municipios</div>';
+    return;
+  }
+  el.innerHTML = config.municipalities.map(m => `
+    <div class="muni-item">
+      <div style="flex:1">
+        <div class="muni-name">${m.name}</div>
+        <div class="muni-coords">${m.lat.toFixed(3)}, ${m.lon.toFixed(3)}</div>
+      </div>
+      <button class="muni-remove" onclick="removeMuni('${m.id}')" title="Eliminar">×</button>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  WEATHER
+// ═══════════════════════════════════════════════════════
+let weatherCache = {};
+
+async function fetchWeather(m) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${m.lat}&longitude=${m.lon}` +
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode` +
+    `&timezone=Atlantic%2FCanary&forecast_days=2`;
+  const r = await fetch(url);
+  const d = await r.json();
+  const day = d.daily;
+  return {
+    tmax: Math.round(day.temperature_2m_max[1]),
+    tmin: Math.round(day.temperature_2m_min[1]),
+    rain: day.precipitation_probability_max[1],
+    code: day.weathercode[1]
+  };
+}
+
+function setStatus(state) {
+  const dot = document.getElementById('statusDot');
+  dot.className = `status-dot ${state}`;
+}
+
+async function checkNow() {
+  if (!config.municipalities.length) {
+    document.getElementById('weatherContainer').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">⛅</div>
+        <div class="empty-state-text">Añade municipios para ver la previsión</div>
+      </div>`;
+    setStatus('');
+    return;
+  }
+  setStatus('loading');
+
+  const threshold = parseInt(document.getElementById('threshold').value) || 20;
+  const results = [];
+
+  for (const m of config.municipalities) {
+    try {
+      const w = await fetchWeather(m);
+      results.push({ m, w, ok: true });
+    } catch(e) {
+      results.push({ m, ok: false });
+    }
+  }
+
+  weatherCache = results;
+  renderWeather(results, threshold);
+  setStatus('ok');
+}
+
+function getRainColor(pct, threshold) {
+  if (pct >= threshold) return 'var(--red)';
+  if (pct >= threshold * 0.6) return 'var(--amber)';
+  return 'var(--green)';
+}
+
+function renderWeather(results, threshold) {
+  if (!results.length) return;
+  const container = document.getElementById('weatherContainer');
+
+  const cards = results.map((r, i) => {
+    if (!r.ok) return `
+      <div class="weather-card" style="animation-delay:${i*0.06}s">
+        <div class="card-muni">${r.m.name}</div>
+        <div class="empty-state-text" style="color:var(--red)">Error al cargar</div>
+      </div>`;
+
+    const { w, m } = r;
+    const isAlert = w.rain >= threshold;
+    const color = getRainColor(w.rain, threshold);
+    const emoji = getEmoji(w.code);
+    const desc = getDesc(w.code);
+
+    return `
+      <div class="weather-card ${isAlert?'alert-card':'ok-card'}" style="animation-delay:${i*0.06}s;--card-accent:${color}">
+        <div class="card-muni">${m.name}</div>
+        <div class="card-emoji">${emoji}</div>
+        <div class="card-desc">${desc}</div>
+        <div class="card-stats">
+          <div class="stat">
+            <span class="stat-label">Máx</span>
+            <span class="stat-value" style="color:var(--red)">${w.tmax}°</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Mín</span>
+            <span class="stat-value" style="color:var(--accent)">${w.tmin}°</span>
+          </div>
+        </div>
+        <div class="rain-bar"><div class="rain-fill" style="width:${w.rain}%;background:${color}"></div></div>
+        <div class="rain-pct">
+          <span class="rain-pct-label">Lluvia</span>
+          <span class="rain-pct-value" style="color:${color}">${w.rain}%</span>
+        </div>
+        ${isAlert
+          ? `<div class="alert-badge">⚠ Supera umbral ${threshold}%</div>`
+          : `<div class="ok-badge">✓ Bajo umbral</div>`}
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `<div class="weather-grid">${cards}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TELEGRAM
+// ═══════════════════════════════════════════════════════
+async function sendTelegram(text) {
+  const token = config.tgToken;
+  const chatId = config.tgChatId;
+  if (!token || !chatId) throw new Error('Configura el token y chat ID de Telegram');
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
+  });
+  const d = await r.json();
+  if (!d.ok) throw new Error(d.description || 'Error de Telegram');
+}
+
+async function testTelegram() {
+  try {
+    await sendTelegram('🛰 *RainWatch* — Mensaje de prueba.\nConfiguración correcta ✓');
+    showToast('Mensaje enviado ✓', 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  EXPORT MODAL
+// ═══════════════════════════════════════════════════════
+function buildWorkflow() {
+  const [h, m] = (config.sendTime || '08:00').split(':');
+  const cron = `${parseInt(m)} ${parseInt(h)} * * *`;
+  const muniJson = JSON.stringify(config.municipalities.map(m => ({
+    name: m.name, lat: m.lat, lon: m.lon
+  }))).replace(/"/g, '\\"');
+
+  return `name: RainWatch Daily Alert
+
+on:
+  schedule:
+    - cron: '${cron}'  # ${config.sendTime} hora Canarias (UTC)
+  workflow_dispatch:   # Permite ejecutar manualmente
+
+jobs:
+  check-rain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check rain and notify
+        env:
+          TG_TOKEN: \${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: \${{ secrets.TG_CHAT_ID }}
+          THRESHOLD: "\${{ secrets.THRESHOLD }}"
+          MUNICIPALITIES: "\${{ secrets.MUNICIPALITIES }}"
+        run: |
+          node -e "
+          const THRESHOLD = parseInt(process.env.THRESHOLD) || ${config.threshold};
+          const TG_TOKEN = process.env.TG_TOKEN;
+          const TG_CHAT_ID = process.env.TG_CHAT_ID;
+          const MUNICIPALITIES = JSON.parse(process.env.MUNICIPALITIES);
+
+          const WMO = {
+            0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
+            45:'Niebla',51:'Llovizna ligera',61:'Lluvia ligera',63:'Lluvia',65:'Lluvia intensa',
+            80:'Chubascos',81:'Chubascos',82:'Chubascos fuertes',95:'Tormenta',99:'Tormenta intensa'
+          };
+          const WMO_EMOJI = {
+            0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',51:'🌦',61:'🌧',63:'🌧',65:'🌧',
+            80:'🌦',81:'🌧',82:'⛈',95:'⛈',99:'⛈'
+          };
+
+          async function fetchWeather(m) {
+            const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + m.lat +
+              '&longitude=' + m.lon +
+              '&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode' +
+              '&timezone=Atlantic/Canary&forecast_days=2';
+            const r = await fetch(url);
+            const d = await r.json();
+            return {
+              tmax: Math.round(d.daily.temperature_2m_max[1]),
+              tmin: Math.round(d.daily.temperature_2m_min[1]),
+              rain: d.daily.precipitation_probability_max[1],
+              code: d.daily.weathercode[1]
+            };
+          }
+
+          async function sendTg(text) {
+            await fetch('https://api.telegram.org/bot' + TG_TOKEN + '/sendMessage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'Markdown' })
+            });
+          }
+
+          (async () => {
+            let header = '🛰 *RainWatch: Previsión de mañana*\n\n';
+            let body = '';
+            let alerts = false;
+            for (const m of MUNICIPALITIES) {
+              try {
+                const w = await fetchWeather(m);
+                if (w.rain >= THRESHOLD) {
+                  alerts = true;
+                  const emoji = WMO_EMOJI[w.code] || '🌡';
+                  const desc = WMO[w.code] || 'Variable';
+                  body += '📍 *' + m.name + '*\n';
+                  body += emoji + ' ' + desc + '\n';
+                  body += '💧 Probabilidad lluvia: *' + w.rain + '%*\n';
+                  body += '🌡️ ' + w.tmin + '° / ' + w.tmax + '°\n\n';
+                }
+              } catch(e) { console.error(m.name, e); }
+            }
+            if (alerts) {
+              await sendTg(header + body + '_Umbral configurado: ${config.threshold}%_');
+              console.log('Alerta enviada.');
+            } else {
+              console.log('Sin alertas. Umbral: ${config.threshold}%');
+            }
+          })();
+          "`;
+}
+
+function buildSecrets() {
+  const muniJson = JSON.stringify(config.municipalities.map(m => ({
+    name: m.name, lat: m.lat, lon: m.lon
+  })));
+  return `Secret name       → Valor
+─────────────────────────────────────────
+TG_TOKEN          → ${config.tgToken || 'tu_bot_token_aquí'}
+TG_CHAT_ID        → ${config.tgChatId || 'tu_chat_id_aquí'}
+THRESHOLD         → ${config.threshold}
+MUNICIPALITIES    → ${muniJson}`;
+}
+
+function openExportModal() {
+  document.getElementById('exportSecrets').textContent = buildSecrets();
+  document.getElementById('exportWorkflow').textContent = buildWorkflow();
+  document.getElementById('exportModal').classList.add('open');
+}
+
+function closeExportModal(e) {
+  if (!e || e.target === document.getElementById('exportModal')) {
+    document.getElementById('exportModal').classList.remove('open');
+  }
+}
+
+function copyExport() {
+  navigator.clipboard.writeText(buildWorkflow())
+    .then(() => showToast('Workflow copiado ✓', 'success'))
+    .catch(() => showToast('Error al copiar', 'error'));
+}
+
+// ═══════════════════════════════════════════════════════
+//  UI UTILS
+// ═══════════════════════════════════════════════════════
+function togglePw(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+loadConfig();
+if (config.municipalities.length) checkNow();
+</script>
+</body>
+</html>
