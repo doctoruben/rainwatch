@@ -4,6 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RainWatch — Alertas de Lluvia</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0c1219">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RainWatch">
+
+<!-- Icons -->
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144.png">
+
+<!-- SEO / Social -->
+<meta name="description" content="Monitoriza la probabilidad de lluvia en tus municipios y recibe alertas por Telegram.">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -738,18 +757,26 @@ input::placeholder { color: var(--text-dim); }
   <div class="modal">
     <div class="modal-title">Configuración para GitHub Actions</div>
     <div class="modal-sub">
-      Crea un repositorio en GitHub y añade estos <strong>Secrets</strong> en
-      Settings → Secrets → Actions. Luego copia el archivo del workflow.
+      Necesitas crear <strong>dos archivos</strong> en tu repo y <strong>4 secrets</strong> en
+      Settings → Secrets and variables → Actions.
     </div>
 
-    <div class="label" style="margin-bottom:8px;">Secrets a configurar</div>
+    <div class="label" style="margin-bottom:8px;">① Secrets a configurar en GitHub</div>
     <div class="code-block" id="exportSecrets"></div>
 
-    <div class="label" style="margin-bottom:8px;">Archivo: <code style="color:var(--accent)">.github/workflows/rainwatch.yml</code></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="label" style="margin-bottom:0">② Archivo: <code style="color:var(--accent)">.github/workflows/rainwatch.yml</code></div>
+      <button class="btn btn-ghost btn-sm" onclick="copyText(buildWorkflow(), 'rainwatch.yml')">⎘ Copiar</button>
+    </div>
     <div class="code-block" id="exportWorkflow"></div>
 
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="label" style="margin-bottom:0">③ Archivo: <code style="color:var(--accent)">.github/scripts/check-rain.js</code></div>
+      <button class="btn btn-ghost btn-sm" onclick="copyText(buildScript(), 'check-rain.js')">⎘ Copiar</button>
+    </div>
+    <div class="code-block" id="exportScript"></div>
+
     <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="copyExport()">⎘ Copiar workflow</button>
       <button class="btn btn-primary btn-sm" onclick="closeExportModal()">Cerrar</button>
     </div>
   </div>
@@ -1047,93 +1074,113 @@ async function testTelegram() {
 function buildWorkflow() {
   const [h, m] = (config.sendTime || '08:00').split(':');
   const cron = `${parseInt(m)} ${parseInt(h)} * * *`;
-  const muniJson = JSON.stringify(config.municipalities.map(m => ({
-    name: m.name, lat: m.lat, lon: m.lon
-  }))).replace(/"/g, '\\"');
 
   return `name: RainWatch Daily Alert
 
 on:
   schedule:
-    - cron: '${cron}'  # ${config.sendTime} hora Canarias (UTC)
-  workflow_dispatch:   # Permite ejecutar manualmente
+    - cron: '${cron}'  # ${config.sendTime} UTC (Canarias invierno=UTC, verano=UTC+1)
+  workflow_dispatch:   # Permite ejecutar manualmente desde GitHub
 
 jobs:
   check-rain:
     runs-on: ubuntu-latest
     steps:
-      - name: Check rain and notify
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check rain and notify Telegram
         env:
           TG_TOKEN: \${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: \${{ secrets.TG_CHAT_ID }}
-          THRESHOLD: "\${{ secrets.THRESHOLD }}"
-          MUNICIPALITIES: "\${{ secrets.MUNICIPALITIES }}"
-        run: |
-          node -e "
-          const THRESHOLD = parseInt(process.env.THRESHOLD) || ${config.threshold};
-          const TG_TOKEN = process.env.TG_TOKEN;
-          const TG_CHAT_ID = process.env.TG_CHAT_ID;
-          const MUNICIPALITIES = JSON.parse(process.env.MUNICIPALITIES);
+          THRESHOLD: \${{ secrets.THRESHOLD }}
+          MUNICIPALITIES: \${{ secrets.MUNICIPALITIES }}
+        run: node .github/scripts/check-rain.js`;
+}
 
-          const WMO = {
-            0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
-            45:'Niebla',51:'Llovizna ligera',61:'Lluvia ligera',63:'Lluvia',65:'Lluvia intensa',
-            80:'Chubascos',81:'Chubascos',82:'Chubascos fuertes',95:'Tormenta',99:'Tormenta intensa'
-          };
-          const WMO_EMOJI = {
-            0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',51:'🌦',61:'🌧',63:'🌧',65:'🌧',
-            80:'🌦',81:'🌧',82:'⛈',95:'⛈',99:'⛈'
-          };
+function buildScript() {
+  return `// RainWatch — check-rain.js
+// Ubicación en el repo: .github/scripts/check-rain.js
 
-          async function fetchWeather(m) {
-            const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + m.lat +
-              '&longitude=' + m.lon +
-              '&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode' +
-              '&timezone=Atlantic/Canary&forecast_days=2';
-            const r = await fetch(url);
-            const d = await r.json();
-            return {
-              tmax: Math.round(d.daily.temperature_2m_max[1]),
-              tmin: Math.round(d.daily.temperature_2m_min[1]),
-              rain: d.daily.precipitation_probability_max[1],
-              code: d.daily.weathercode[1]
-            };
-          }
+const THRESHOLD = parseInt(process.env.THRESHOLD) || 20;
+const TG_TOKEN = process.env.TG_TOKEN;
+const TG_CHAT_ID = process.env.TG_CHAT_ID;
+const MUNICIPALITIES = JSON.parse(process.env.MUNICIPALITIES);
 
-          async function sendTg(text) {
-            await fetch('https://api.telegram.org/bot' + TG_TOKEN + '/sendMessage', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'Markdown' })
-            });
-          }
+const WMO = {
+  0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
+  45:'Niebla',48:'Niebla helada',51:'Llovizna ligera',53:'Llovizna',55:'Llovizna densa',
+  61:'Lluvia ligera',63:'Lluvia',65:'Lluvia intensa',
+  71:'Nevada ligera',73:'Nevada',75:'Nevada intensa',
+  80:'Chubascos ligeros',81:'Chubascos',82:'Chubascos fuertes',
+  95:'Tormenta',96:'Tormenta con granizo',99:'Tormenta intensa'
+};
+const WMO_EMOJI = {
+  0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',
+  51:'🌦',53:'🌦',55:'🌧',61:'🌧',63:'🌧',65:'🌧',
+  71:'❄️',73:'❄️',75:'❄️',80:'🌦',81:'🌧',82:'⛈',
+  95:'⛈',96:'⛈',99:'⛈'
+};
 
-          (async () => {
-            let header = '🛰 *RainWatch: Previsión de mañana*\n\n';
-            let body = '';
-            let alerts = false;
-            for (const m of MUNICIPALITIES) {
-              try {
-                const w = await fetchWeather(m);
-                if (w.rain >= THRESHOLD) {
-                  alerts = true;
-                  const emoji = WMO_EMOJI[w.code] || '🌡';
-                  const desc = WMO[w.code] || 'Variable';
-                  body += '📍 *' + m.name + '*\n';
-                  body += emoji + ' ' + desc + '\n';
-                  body += '💧 Probabilidad lluvia: *' + w.rain + '%*\n';
-                  body += '🌡️ ' + w.tmin + '° / ' + w.tmax + '°\n\n';
-                }
-              } catch(e) { console.error(m.name, e); }
-            }
-            if (alerts) {
-              await sendTg(header + body + '_Umbral configurado: ${config.threshold}%_');
-              console.log('Alerta enviada.');
-            } else {
-              console.log('Sin alertas. Umbral: ${config.threshold}%');
-            }
-          })();
-          "`;
+async function fetchWeather(m) {
+  const url = \`https://api.open-meteo.com/v1/forecast\` +
+    \`?latitude=\${m.lat}&longitude=\${m.lon}\` +
+    \`&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode\` +
+    \`&timezone=Atlantic/Canary&forecast_days=2\`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const d = data.daily;
+  return {
+    tmax: Math.round(d.temperature_2m_max[1]),
+    tmin: Math.round(d.temperature_2m_min[1]),
+    rain: d.precipitation_probability_max[1],
+    code: d.weathercode[1]
+  };
+}
+
+async function sendTelegram(text) {
+  const url = \`https://api.telegram.org/bot\${TG_TOKEN}/sendMessage\`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'Markdown' })
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(\`Telegram error: \${data.description}\`);
+}
+
+(async () => {
+  console.log(\`Umbral: \${THRESHOLD}% | Municipios: \${MUNICIPALITIES.map(m => m.name).join(', ')}\`);
+  let header = '🛰 *RainWatch: Previsión de mañana*\\n\\n';
+  let body = '';
+  let alerts = false;
+
+  for (const m of MUNICIPALITIES) {
+    try {
+      const w = await fetchWeather(m);
+      console.log(\`\${m.name}: \${w.rain}% lluvia\`);
+      if (w.rain >= THRESHOLD) {
+        alerts = true;
+        body += \`📍 *\${m.name}*\\n\`;
+        body += \`\${WMO_EMOJI[w.code] || '🌡'} \${WMO[w.code] || 'Variable'}\\n\`;
+        body += \`💧 Probabilidad lluvia: *\${w.rain}%*\\n\`;
+        body += \`🌡️ \${w.tmin}° / \${w.tmax}°\\n\\n\`;
+      }
+    } catch(e) { console.error(\`Error en \${m.name}:\`, e.message); }
+  }
+
+  if (alerts) {
+    await sendTelegram(header + body + \`_Umbral configurado: \${THRESHOLD}%_\`);
+    console.log('✅ Alerta enviada por Telegram.');
+  } else {
+    console.log('✅ Sin alertas. Ningún municipio supera el umbral.');
+  }
+})();`;
 }
 
 function buildSecrets() {
@@ -1151,6 +1198,7 @@ MUNICIPALITIES    → ${muniJson}`;
 function openExportModal() {
   document.getElementById('exportSecrets').textContent = buildSecrets();
   document.getElementById('exportWorkflow').textContent = buildWorkflow();
+  document.getElementById('exportScript').textContent = buildScript();
   document.getElementById('exportModal').classList.add('open');
 }
 
@@ -1160,9 +1208,9 @@ function closeExportModal(e) {
   }
 }
 
-function copyExport() {
-  navigator.clipboard.writeText(buildWorkflow())
-    .then(() => showToast('Workflow copiado ✓', 'success'))
+function copyText(text, label) {
+  navigator.clipboard.writeText(text)
+    .then(() => showToast(`${label} copiado ✓`, 'success'))
     .catch(() => showToast('Error al copiar', 'error'));
 }
 
@@ -1189,6 +1237,15 @@ function showToast(msg, type='') {
 // ═══════════════════════════════════════════════════════
 loadConfig();
 if (config.municipalities.length) checkNow();
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registrado:', reg.scope))
+      .catch(err => console.log('SW error:', err));
+  });
+}
 </script>
 </body>
 </html>
