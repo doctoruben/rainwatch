@@ -1,0 +1,22 @@
+﻿{
+  "name": "RainWatch — Alertas de Lluvia",
+  "short_name": "RainWatch",
+  "description": "Monitoriza la probabilidad de lluvia en tus municipios y recibe alertas por Telegram.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c1219",
+  "theme_color": "#0c1219",
+  "lang": "es",
+  "categories": ["weather", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  }

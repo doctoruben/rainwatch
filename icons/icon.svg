@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="110" fill="#0c1219"/>
+  
+  <!-- Grid lines subtle -->
+  <line x1="0" y1="170" x2="512" y2="170" stroke="#4a9fd4" stroke-width="1" opacity="0.08"/>
+  <line x1="0" y1="340" x2="512" y2="340" stroke="#4a9fd4" stroke-width="1" opacity="0.08"/>
+  <line x1="170" y1="0" x2="170" y2="512" stroke="#4a9fd4" stroke-width="1" opacity="0.08"/>
+  <line x1="340" y1="0" x2="340" y2="512" stroke="#4a9fd4" stroke-width="1" opacity="0.08"/>
+
+  <!-- Cloud body -->
+  <circle cx="200" cy="210" r="72" fill="#17202c"/>
+  <circle cx="270" cy="188" r="58" fill="#17202c"/>
+  <circle cx="330" cy="210" r="52" fill="#17202c"/>
+  <rect x="200" y="210" width="182" height="58" fill="#17202c"/>
+
+  <!-- Cloud highlight stroke -->
+  <path d="M148 268 Q148 140 270 140 Q360 140 382 210 Q420 210 420 268 Z"
+        fill="none" stroke="#4a9fd4" stroke-width="3" opacity="0.5"/>
+
+  <!-- Rain drops -->
+  <line x1="210" y1="295" x2="195" y2="340" stroke="#4a9fd4" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+  <line x1="256" y1="295" x2="241" y2="340" stroke="#4a9fd4" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+  <line x1="302" y1="295" x2="287" y2="340" stroke="#4a9fd4" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+  <line x1="348" y1="295" x2="333" y2="340" stroke="#4a9fd4" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- Second row drops (offset, faded) -->
+  <line x1="233" y1="350" x2="220" y2="390" stroke="#4a9fd4" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+  <line x1="279" y1="350" x2="266" y2="390" stroke="#4a9fd4" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+  <line x1="325" y1="350" x2="312" y2="390" stroke="#4a9fd4" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+</svg>
