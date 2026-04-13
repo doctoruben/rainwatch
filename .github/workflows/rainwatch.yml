@@ -2,7 +2,7 @@ name: RainWatch Daily Alert
 
 on:
   schedule:
-    - cron: '0 8 * * *'  # Ajusta la hora en UTC (8:00 UTC = 9:00 Canarias invierno / 8:00 verano)
+    - cron: '0 20 * * *'  # Ajusta la hora en UTC (8:00 UTC = 9:00 Canarias invierno / 8:00 verano)
   workflow_dispatch:      # Permite ejecutar manualmente desde GitHub
 
 jobs:
