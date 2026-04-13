@@ -622,7 +622,79 @@ input::placeholder { color: var(--text-dim); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-.gap-10 { display: flex; gap: 10px; }
+/* ── Detail modal stats ── */
+#detailSummary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 500px) {
+  #detailSummary { grid-template-columns: repeat(2, 1fr); }
+}
+
+.detail-stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.detail-stat-icon { font-size: 18px; }
+.detail-stat-val  { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; }
+.detail-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: 'DM Mono', monospace; }
+
+/* ── Hourly table ── */
+.hourly-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.hourly-table thead tr {
+  border-bottom: 1px solid var(--border2);
+}
+
+.hourly-table th {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 500;
+}
+
+.hourly-row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.hourly-row:last-child { border-bottom: none; }
+.hourly-row:hover { background: var(--surface2); }
+
+.hourly-row td { padding: 8px 10px; vertical-align: middle; }
+
+.hourly-hour {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.hourly-emoji { font-size: 16px; }
+.hourly-temp  { font-family: 'DM Mono', monospace; font-size: 13px; white-space: nowrap; }
+.hourly-feels { font-size: 10px; color: var(--text-muted); }
+.hourly-cell  { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+/* Wider detail modal scrollable */
+#detailModal .modal { overflow-y: auto; max-height: 90vh; }
+
 .mt-12 { margin-top: 12px; }
 .password-wrap { position: relative; }
 .password-wrap input { padding-right: 44px; }
@@ -751,6 +823,33 @@ input::placeholder { color: var(--text-dim); }
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal" onclick="closeDetailModal(event)">
+  <div class="modal" style="max-width:700px;">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div id="detailEmoji" style="font-size:36px;line-height:1"></div>
+      <div>
+        <div id="detailName" style="font-family:'DM Serif Display',serif;font-size:22px;"></div>
+        <div id="detailDesc" style="font-size:12px;color:var(--text-muted);margin-top:2px;"></div>
+      </div>
+      <button onclick="closeDetailModal()" style="margin-left:auto;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1;padding:4px 8px;border-radius:6px;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">×</button>
+    </div>
+
+    <!-- Summary row -->
+    <div id="detailSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;"></div>
+
+    <!-- Hourly chart label -->
+    <div class="label" style="margin-bottom:10px;">Evolución horaria — mañana</div>
+
+    <!-- Hourly table -->
+    <div id="detailHourly" style="overflow-x:auto;"></div>
+
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn btn-primary btn-sm" onclick="closeDetailModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Export Modal -->
 <div class="modal-overlay" id="exportModal" onclick="closeExportModal(event)">
@@ -1036,10 +1135,152 @@ function renderWeather(results, threshold) {
         ${isAlert
           ? `<div class="alert-badge">⚠ Supera umbral ${threshold}%</div>`
           : `<div class="ok-badge">✓ Bajo umbral</div>`}
+        <button class="btn btn-ghost btn-sm btn-full" style="margin-top:12px;font-size:11px;" onclick="openDetail('${m.id}')">
+          Ver detalle completo →
+        </button>
       </div>`;
   }).join('');
 
   container.innerHTML = `<div class="weather-grid">${cards}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  DETAIL MODAL
+// ═══════════════════════════════════════════════════════
+async function fetchWeatherDetail(m) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${m.lat}&longitude=${m.lon}` +
+    `&hourly=temperature_2m,precipitation_probability,precipitation,weathercode,windspeed_10m,relativehumidity_2m,apparent_temperature` +
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,windspeed_10m_max,weathercode,sunrise,sunset` +
+    `&timezone=Atlantic%2FCanary&forecast_days=2`;
+  const r = await fetch(url);
+  return await r.json();
+}
+
+async function openDetail(muniId) {
+  const entry = weatherCache.find(r => r.m.id === muniId);
+  if (!entry || !entry.ok) return;
+  const { m, w } = entry;
+
+  // Populate header immediately with cached data
+  document.getElementById('detailName').textContent = m.name;
+  document.getElementById('detailDesc').textContent = getDesc(w.code);
+  document.getElementById('detailEmoji').textContent = getEmoji(w.code);
+  document.getElementById('detailSummary').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-dim);font-family:\'DM Mono\',monospace;font-size:11px;padding:10px">Cargando detalle...</div>';
+  document.getElementById('detailHourly').innerHTML = '';
+  document.getElementById('detailModal').classList.add('open');
+
+  try {
+    const data = await fetchWeatherDetail(m);
+    const daily = data.daily;
+    const hourly = data.hourly;
+
+    // Find tomorrow's index (day index 1)
+    const sunrise = daily.sunrise[1].split('T')[1];
+    const sunset  = daily.sunset[1].split('T')[1];
+    const precip  = daily.precipitation_sum[1].toFixed(1);
+    const windMax = Math.round(daily.windspeed_10m_max[1]);
+    const rainPct = daily.precipitation_probability_max[1];
+    const threshold = parseInt(document.getElementById('threshold').value) || 20;
+    const rainColor = getRainColor(rainPct, threshold);
+
+    // Summary cards
+    document.getElementById('detailSummary').innerHTML = `
+      <div class="detail-stat">
+        <div class="detail-stat-icon">🌡️</div>
+        <div class="detail-stat-val">${w.tmin}° / ${w.tmax}°</div>
+        <div class="detail-stat-label">Min / Máx</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-icon">💧</div>
+        <div class="detail-stat-val" style="color:${rainColor}">${rainPct}%</div>
+        <div class="detail-stat-label">Prob. lluvia</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-icon">🌧</div>
+        <div class="detail-stat-val">${precip} mm</div>
+        <div class="detail-stat-label">Precipitación</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-icon">💨</div>
+        <div class="detail-stat-val">${windMax} km/h</div>
+        <div class="detail-stat-label">Viento máx.</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-icon">🌅</div>
+        <div class="detail-stat-val">${sunrise}</div>
+        <div class="detail-stat-label">Amanecer</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-icon">🌇</div>
+        <div class="detail-stat-val">${sunset}</div>
+        <div class="detail-stat-label">Atardecer</div>
+      </div>`;
+
+    // Hourly data — filter tomorrow (hours 24-47)
+    const tomorrowHours = hourly.time.slice(24, 48);
+    const temps    = hourly.temperature_2m.slice(24, 48);
+    const apparent = hourly.apparent_temperature.slice(24, 48);
+    const rainProb = hourly.precipitation_probability.slice(24, 48);
+    const rainMm   = hourly.precipitation.slice(24, 48);
+    const wind     = hourly.windspeed_10m.slice(24, 48);
+    const humidity = hourly.relativehumidity_2m.slice(24, 48);
+    const codes    = hourly.weathercode.slice(24, 48);
+
+    // Only show every 2 hours for readability
+    const rows = tomorrowHours.map((t, i) => {
+      if (i % 2 !== 0) return '';
+      const hour = t.split('T')[1].slice(0,5);
+      const rp = rainProb[i];
+      const rc = getRainColor(rp, threshold);
+      const temp = Math.round(temps[i]);
+      const feels = Math.round(apparent[i]);
+      const emoji = getEmoji(codes[i]);
+
+      return `
+        <tr class="hourly-row">
+          <td class="hourly-hour">${hour}</td>
+          <td class="hourly-emoji">${emoji}</td>
+          <td class="hourly-temp">${temp}°<span class="hourly-feels"> (${feels}°)</span></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:60px;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;">
+                <div style="width:${rp}%;height:100%;background:${rc};border-radius:2px;"></div>
+              </div>
+              <span style="font-family:'DM Mono',monospace;font-size:11px;color:${rc};min-width:30px">${rp}%</span>
+            </div>
+          </td>
+          <td class="hourly-cell">${rainMm[i].toFixed(1)} mm</td>
+          <td class="hourly-cell">${Math.round(wind[i])} km/h</td>
+          <td class="hourly-cell">${humidity[i]}%</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('detailHourly').innerHTML = `
+      <table class="hourly-table">
+        <thead>
+          <tr>
+            <th>Hora</th>
+            <th></th>
+            <th>Temp.</th>
+            <th>Prob. lluvia</th>
+            <th>Precip.</th>
+            <th>Viento</th>
+            <th>Humedad</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+  } catch(e) {
+    document.getElementById('detailSummary').innerHTML =
+      `<div style="grid-column:1/-1;color:var(--red);font-size:12px">Error al cargar el detalle</div>`;
+  }
+}
+
+function closeDetailModal(e) {
+  if (!e || e.target === document.getElementById('detailModal')) {
+    document.getElementById('detailModal').classList.remove('open');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
