@@ -1,0 +1,90 @@
+name: RainWatch Daily Alert
+
+on:
+  schedule:
+    - cron: '0 20 * * *'  # 20:00 hora Canarias (UTC)
+  workflow_dispatch:   # Permite ejecutar manualmente
+
+jobs:
+  check-rain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check rain and notify
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          THRESHOLD: "${{ secrets.THRESHOLD }}"
+          MUNICIPALITIES: "${{ secrets.MUNICIPALITIES }}"
+        run: |
+          node -e "
+          const THRESHOLD = parseInt(process.env.THRESHOLD) || 20;
+          const TG_TOKEN = process.env.TG_TOKEN;
+          const TG_CHAT_ID = process.env.TG_CHAT_ID;
+          const MUNICIPALITIES = JSON.parse(process.env.MUNICIPALITIES);
+
+          const WMO = {
+            0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
+            45:'Niebla',51:'Llovizna ligera',61:'Lluvia ligera',63:'Lluvia',65:'Lluvia intensa',
+            80:'Chubascos',81:'Chubascos',82:'Chubascos fuertes',95:'Tormenta',99:'Tormenta intensa'
+          };
+          const WMO_EMOJI = {
+            0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',51:'🌦',61:'🌧',63:'🌧',65:'🌧',
+            80:'🌦',81:'🌧',82:'⛈',95:'⛈',99:'⛈'
+          };
+
+          async function fetchWeather(m) {
+            const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + m.lat +
+              '&longitude=' + m.lon +
+              '&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode' +
+              '&timezone=Atlantic/Canary&forecast_days=2';
+            const r = await fetch(url);
+            const d = await r.json();
+            return {
+              tmax: Math.round(d.daily.temperature_2m_max[1]),
+              tmin: Math.round(d.daily.temperature_2m_min[1]),
+              rain: d.daily.precipitation_probability_max[1],
+              code: d.daily.weathercode[1]
+            };
+          }
+
+          async function sendTg(text) {
+            await fetch('https://api.telegram.org/bot' + TG_TOKEN + '/sendMessage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'Markdown' })
+            });
+          }
+
+          (async () => {
+            let header = '🛰 *RainWatch: Previsión de mañana*
+
+';
+            let body = '';
+            let alerts = false;
+            for (const m of MUNICIPALITIES) {
+              try {
+                const w = await fetchWeather(m);
+                if (w.rain >= THRESHOLD) {
+                  alerts = true;
+                  const emoji = WMO_EMOJI[w.code] || '🌡';
+                  const desc = WMO[w.code] || 'Variable';
+                  body += '📍 *' + m.name + '*
+';
+                  body += emoji + ' ' + desc + '
+';
+                  body += '💧 Probabilidad lluvia: *' + w.rain + '%*
+';
+                  body += '🌡️ ' + w.tmin + '° / ' + w.tmax + '°
+
+';
+                }
+              } catch(e) { console.error(m.name, e); }
+            }
+            if (alerts) {
+              await sendTg(header + body + '_Umbral configurado: 20%_');
+              console.log('Alerta enviada.');
+            } else {
+              console.log('Sin alertas. Umbral: 20%');
+            }
+          })();
+          "
