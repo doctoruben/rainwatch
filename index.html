@@ -772,6 +772,12 @@ input::placeholder { color: var(--text-dim); }
     <!-- Right: Config -->
     <div style="display:flex;flex-direction:column;gap:18px;">
 
+      <!-- Firebase status -->
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span id="fbDot" class="status-dot"></span>
+        <span id="fbLabel" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Firebase no configurado</span>
+      </div>
+
       <!-- Municipios -->
       <div class="panel">
         <div class="panel-header">
@@ -876,8 +882,7 @@ input::placeholder { color: var(--text-dim); }
   <div class="modal">
     <div class="modal-title">Configuración para GitHub Actions</div>
     <div class="modal-sub">
-      Necesitas crear <strong>dos archivos</strong> en tu repo y <strong>4 secrets</strong> en
-      Settings → Secrets and variables → Actions.
+      Con Firebase solo necesitas <strong>3 secrets fijos</strong> en GitHub. Municipios, umbral y hora se leen automáticamente desde Firestore — nunca más tocarás los secrets.
     </div>
 
     <div class="label" style="margin-bottom:8px;">① Secrets a configurar en GitHub</div>
@@ -926,7 +931,63 @@ function getEmoji(code) { return WMO_EMOJI[code] || '🌡'; }
 function getDesc(code) { return WMO[code] || 'Desconocido'; }
 
 // ═══════════════════════════════════════════════════════
-//  STORAGE
+//  FIREBASE CONFIG
+// ═══════════════════════════════════════════════════════
+const FIREBASE_API_KEY  = 'AIzaSyBnmTgJYFsFAFWnGyaDZRUxOZGnL5SE1QA';
+const FIREBASE_PROJECT  = 'lista-compra-9d6f5';
+const FIRESTORE_BASE    = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents`;
+const CONFIG_DOC        = `${FIRESTORE_BASE}/rainwatch/config`;
+
+// ── Firestore REST helpers ──
+function toFirestore(obj) {
+  function convert(val) {
+    if (Array.isArray(val))          return { arrayValue: { values: val.map(convert) } };
+    if (val === null)                return { nullValue: null };
+    if (typeof val === 'boolean')    return { booleanValue: val };
+    if (typeof val === 'number')     return { doubleValue: val };
+    if (typeof val === 'object')     return { mapValue: { fields: Object.fromEntries(Object.entries(val).map(([k,v]) => [k, convert(v)])) } };
+    return { stringValue: String(val) };
+  }
+  return { fields: Object.fromEntries(Object.entries(obj).map(([k,v]) => [k, convert(v)])) };
+}
+
+function fromFirestore(fields) {
+  function parse(val) {
+    if ('stringValue'  in val) return val.stringValue;
+    if ('doubleValue'  in val) return val.doubleValue;
+    if ('integerValue' in val) return parseInt(val.integerValue);
+    if ('booleanValue' in val) return val.booleanValue;
+    if ('nullValue'    in val) return null;
+    if ('arrayValue'   in val) return (val.arrayValue.values || []).map(parse);
+    if ('mapValue'     in val) return fromFirestore(val.mapValue.fields || {});
+    return null;
+  }
+  return Object.fromEntries(Object.entries(fields || {}).map(([k,v]) => [k, parse(v)]));
+}
+
+async function firestoreGet() {
+  const r = await fetch(`${CONFIG_DOC}?key=${FIREBASE_API_KEY}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`Firestore GET error ${r.status}`);
+  const d = await r.json();
+  return fromFirestore(d.fields);
+}
+
+async function firestoreSet(data) {
+  const url = `${CONFIG_DOC}?key=${FIREBASE_API_KEY}`;
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toFirestore(data))
+  });
+  if (!r.ok) {
+    const err = await r.json();
+    throw new Error(err.error?.message || `Firestore PATCH error ${r.status}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CONFIG / STORAGE  (Firebase + localStorage fallback)
 // ═══════════════════════════════════════════════════════
 let config = {
   municipalities: [],
@@ -936,24 +997,71 @@ let config = {
   tgChatId: ''
 };
 
-function loadConfig() {
-  const saved = localStorage.getItem('rainwatch_config');
-  if (saved) {
-    try { config = { ...config, ...JSON.parse(saved) }; } catch(e) {}
-  }
+let saveTimer = null;
+
+function applyConfigToUI() {
   document.getElementById('threshold').value = config.threshold;
-  document.getElementById('sendTime').value = config.sendTime;
-  document.getElementById('tgToken').value = config.tgToken;
-  document.getElementById('tgChatId').value = config.tgChatId;
+  document.getElementById('sendTime').value  = config.sendTime;
+  document.getElementById('tgToken').value   = config.tgToken;
+  document.getElementById('tgChatId').value  = config.tgChatId;
   renderMuniList();
+}
+
+async function loadConfig() {
+  // 1. Load from localStorage immediately (instant UI)
+  const local = localStorage.getItem('rainwatch_config');
+  if (local) {
+    try { config = { ...config, ...JSON.parse(local) }; } catch(e) {}
+  }
+  applyConfigToUI();
+  if (config.municipalities.length) checkNow();
+
+  // 2. Sync from Firestore (authoritative)
+  if (FIREBASE_API_KEY === 'TU_API_KEY_AQUI') return; // not configured yet
+  try {
+    setFirebaseStatus('loading');
+    const remote = await firestoreGet();
+    if (remote) {
+      config = { ...config, ...remote };
+      localStorage.setItem('rainwatch_config', JSON.stringify(config));
+      applyConfigToUI();
+      if (config.municipalities.length) checkNow();
+    }
+    setFirebaseStatus('ok');
+  } catch(e) {
+    setFirebaseStatus('error', e.message);
+  }
 }
 
 function saveConfig() {
   config.threshold = parseInt(document.getElementById('threshold').value) || 20;
-  config.sendTime = document.getElementById('sendTime').value;
-  config.tgToken = document.getElementById('tgToken').value.trim();
-  config.tgChatId = document.getElementById('tgChatId').value.trim();
+  config.sendTime  = document.getElementById('sendTime').value;
+  config.tgToken   = document.getElementById('tgToken').value.trim();
+  config.tgChatId  = document.getElementById('tgChatId').value.trim();
+
+  // Save to localStorage immediately
   localStorage.setItem('rainwatch_config', JSON.stringify(config));
+
+  // Debounce Firestore writes (avoid writing on every keypress)
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    if (FIREBASE_API_KEY === 'TU_API_KEY_AQUI') return;
+    try {
+      setFirebaseStatus('loading');
+      await firestoreSet(config);
+      setFirebaseStatus('ok');
+    } catch(e) {
+      setFirebaseStatus('error', e.message);
+    }
+  }, 800);
+}
+
+function setFirebaseStatus(state, msg = '') {
+  const dot = document.getElementById('fbDot');
+  const lbl = document.getElementById('fbLabel');
+  if (!dot) return;
+  dot.className = `status-dot ${state === 'ok' ? 'ok' : state === 'loading' ? 'loading' : 'error'}`;
+  lbl.textContent = state === 'ok' ? 'Firebase sincronizado' : state === 'loading' ? 'Guardando...' : `Firebase: ${msg}`;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1346,6 +1454,8 @@ on:
 jobs:
   check-rain:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -1353,25 +1463,42 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Check rain and notify Telegram
         env:
           TG_TOKEN: \${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: \${{ secrets.TG_CHAT_ID }}
-          THRESHOLD: \${{ secrets.THRESHOLD }}
-          MUNICIPALITIES: \${{ secrets.MUNICIPALITIES }}
+          FIREBASE_API_KEY: \${{ secrets.FIREBASE_API_KEY }}
         run: node .github/scripts/check-rain.js`;
 }
 
 function buildScript() {
   return `// RainWatch — check-rain.js
-// Ubicación en el repo: .github/scripts/check-rain.js
+// Ubicación: .github/scripts/check-rain.js
 
-const THRESHOLD = parseInt(process.env.THRESHOLD) || 20;
-const TG_TOKEN = process.env.TG_TOKEN;
-const TG_CHAT_ID = process.env.TG_CHAT_ID;
-const MUNICIPALITIES = JSON.parse(process.env.MUNICIPALITIES);
+const TG_TOKEN       = process.env.TG_TOKEN;
+const TG_CHAT_ID     = process.env.TG_CHAT_ID;
+const FIREBASE_KEY   = process.env.FIREBASE_API_KEY;
+const FIREBASE_PROJECT = 'lista-compra-9d6f5';
+const CONFIG_DOC = \`https://firestore.googleapis.com/v1/projects/\${FIREBASE_PROJECT}/databases/(default)/documents/rainwatch/config\`;
+
+if (!TG_TOKEN)     { console.error('Falta TG_TOKEN');     process.exit(1); }
+if (!TG_CHAT_ID)   { console.error('Falta TG_CHAT_ID');   process.exit(1); }
+if (!FIREBASE_KEY) { console.error('Falta FIREBASE_API_KEY'); process.exit(1); }
+
+function fromFirestore(fields) {
+  function parse(val) {
+    if ('stringValue'  in val) return val.stringValue;
+    if ('doubleValue'  in val) return val.doubleValue;
+    if ('integerValue' in val) return parseInt(val.integerValue);
+    if ('booleanValue' in val) return val.booleanValue;
+    if ('arrayValue'   in val) return (val.arrayValue.values || []).map(parse);
+    if ('mapValue'     in val) return fromFirestore(val.mapValue.fields || {});
+    return null;
+  }
+  return Object.fromEntries(Object.entries(fields || {}).map(([k,v]) => [k, parse(v)]));
+}
 
 const WMO = {
   0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
@@ -1387,6 +1514,13 @@ const WMO_EMOJI = {
   71:'❄️',73:'❄️',75:'❄️',80:'🌦',81:'🌧',82:'⛈',
   95:'⛈',96:'⛈',99:'⛈'
 };
+
+async function loadConfig() {
+  const res = await fetch(\`\${CONFIG_DOC}?key=\${FIREBASE_KEY}\`);
+  if (!res.ok) throw new Error(\`Firestore error \${res.status}\`);
+  const doc = await res.json();
+  return fromFirestore(doc.fields);
+}
 
 async function fetchWeather(m) {
   const url = \`https://api.open-meteo.com/v1/forecast\` +
@@ -1405,18 +1539,22 @@ async function fetchWeather(m) {
 }
 
 async function sendTelegram(text) {
-  const url = \`https://api.telegram.org/bot\${TG_TOKEN}/sendMessage\`;
-  const res = await fetch(url, {
+  const res = await fetch(\`https://api.telegram.org/bot\${TG_TOKEN}/sendMessage\`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'Markdown' })
   });
   const data = await res.json();
-  if (!data.ok) throw new Error(\`Telegram error: \${data.description}\`);
+  if (!data.ok) throw new Error(\`Telegram: \${data.description}\`);
 }
 
 (async () => {
+  const cfg = await loadConfig();
+  const THRESHOLD      = cfg.threshold || 20;
+  const MUNICIPALITIES = cfg.municipalities || [];
+
   console.log(\`Umbral: \${THRESHOLD}% | Municipios: \${MUNICIPALITIES.map(m => m.name).join(', ')}\`);
+
   let header = '🛰 *RainWatch: Previsión de mañana*\\n\\n';
   let body = '';
   let alerts = false;
@@ -1436,24 +1574,23 @@ async function sendTelegram(text) {
   }
 
   if (alerts) {
-    await sendTelegram(header + body + \`_Umbral configurado: \${THRESHOLD}%_\`);
-    console.log('✅ Alerta enviada por Telegram.');
+    await sendTelegram(header + body + \`_Umbral: \${THRESHOLD}%_\`);
+    console.log('✅ Alerta enviada.');
   } else {
-    console.log('✅ Sin alertas. Ningún municipio supera el umbral.');
+    console.log('✅ Sin alertas.');
   }
 })();`;
 }
 
 function buildSecrets() {
-  const muniJson = JSON.stringify(config.municipalities.map(m => ({
-    name: m.name, lat: m.lat, lon: m.lon
-  })));
   return `Secret name       → Valor
 ─────────────────────────────────────────
 TG_TOKEN          → ${config.tgToken || 'tu_bot_token_aquí'}
 TG_CHAT_ID        → ${config.tgChatId || 'tu_chat_id_aquí'}
-THRESHOLD         → ${config.threshold}
-MUNICIPALITIES    → ${muniJson}`;
+FIREBASE_API_KEY  → TU_API_KEY_DE_FIREBASE
+
+✓ Municipios, umbral y hora se leen automáticamente
+  desde Firestore — no hacen falta más secrets.`;
 }
 
 function openExportModal() {
@@ -1496,8 +1633,7 @@ function showToast(msg, type='') {
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-loadConfig();
-if (config.municipalities.length) checkNow();
+loadConfig(); // async — loads localStorage first, then syncs from Firestore
 
 // ── Service Worker ──
 if ('serviceWorker' in navigator) {
