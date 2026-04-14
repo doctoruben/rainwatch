@@ -6,7 +6,7 @@
 <title>RainWatch — Alertas de Lluvia</title>
 
 <!-- PWA -->
-<link rel="manifest" href="./manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0c1219">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -931,58 +931,27 @@ function getEmoji(code) { return WMO_EMOJI[code] || '🌡'; }
 function getDesc(code) { return WMO[code] || 'Desconocido'; }
 
 // ═══════════════════════════════════════════════════════
-//  FIREBASE CONFIG
+//  FIREBASE REALTIME DATABASE CONFIG
 // ═══════════════════════════════════════════════════════
-const FIREBASE_API_KEY  = 'AIzaSyBnmTgJYFsFAFWnGyaDZRUxOZGnL5SE1QA';
-const FIREBASE_PROJECT  = 'lista-compra-9d6f5';
-const FIRESTORE_BASE    = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents`;
-const CONFIG_DOC        = `${FIRESTORE_BASE}/rainwatch/config`;
+const FIREBASE_API_KEY = 'AIzaSyBnmTgJYFsFAFWnGyaDZRUxOZGnL5SE1QA';
+const RTDB_URL = 'https://lista-compra-9d6f5-default-rtdb.europe-west1.firebasedatabase.app';
+const CONFIG_URL = `${RTDB_URL}/rainwatch/config.json`;
 
-// ── Firestore REST helpers ──
-function toFirestore(obj) {
-  function convert(val) {
-    if (Array.isArray(val))          return { arrayValue: { values: val.map(convert) } };
-    if (val === null)                return { nullValue: null };
-    if (typeof val === 'boolean')    return { booleanValue: val };
-    if (typeof val === 'number')     return { doubleValue: val };
-    if (typeof val === 'object')     return { mapValue: { fields: Object.fromEntries(Object.entries(val).map(([k,v]) => [k, convert(v)])) } };
-    return { stringValue: String(val) };
-  }
-  return { fields: Object.fromEntries(Object.entries(obj).map(([k,v]) => [k, convert(v)])) };
+async function rtdbGet() {
+  const r = await fetch(`${CONFIG_URL}?auth=${FIREBASE_API_KEY}`);
+  if (!r.ok) throw new Error(`RTDB GET error ${r.status}`);
+  return await r.json(); // null if doesn't exist yet
 }
 
-function fromFirestore(fields) {
-  function parse(val) {
-    if ('stringValue'  in val) return val.stringValue;
-    if ('doubleValue'  in val) return val.doubleValue;
-    if ('integerValue' in val) return parseInt(val.integerValue);
-    if ('booleanValue' in val) return val.booleanValue;
-    if ('nullValue'    in val) return null;
-    if ('arrayValue'   in val) return (val.arrayValue.values || []).map(parse);
-    if ('mapValue'     in val) return fromFirestore(val.mapValue.fields || {});
-    return null;
-  }
-  return Object.fromEntries(Object.entries(fields || {}).map(([k,v]) => [k, parse(v)]));
-}
-
-async function firestoreGet() {
-  const r = await fetch(`${CONFIG_DOC}?key=${FIREBASE_API_KEY}`);
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`Firestore GET error ${r.status}`);
-  const d = await r.json();
-  return fromFirestore(d.fields);
-}
-
-async function firestoreSet(data) {
-  const url = `${CONFIG_DOC}?key=${FIREBASE_API_KEY}`;
-  const r = await fetch(url, {
-    method: 'PATCH',
+async function rtdbSet(data) {
+  const r = await fetch(`${CONFIG_URL}?auth=${FIREBASE_API_KEY}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toFirestore(data))
+    body: JSON.stringify(data)
   });
   if (!r.ok) {
     const err = await r.json();
-    throw new Error(err.error?.message || `Firestore PATCH error ${r.status}`);
+    throw new Error(err.error || `RTDB PUT error ${r.status}`);
   }
 }
 
@@ -1008,7 +977,7 @@ function applyConfigToUI() {
 }
 
 async function loadConfig() {
-  // 1. Load from localStorage immediately (instant UI)
+  // 1. localStorage inmediato (UI instantánea)
   const local = localStorage.getItem('rainwatch_config');
   if (local) {
     try { config = { ...config, ...JSON.parse(local) }; } catch(e) {}
@@ -1016,11 +985,11 @@ async function loadConfig() {
   applyConfigToUI();
   if (config.municipalities.length) checkNow();
 
-  // 2. Sync from Firestore (authoritative)
-  if (FIREBASE_API_KEY === 'TU_API_KEY_AQUI') return; // not configured yet
+  // 2. Sync desde Realtime Database (fuente de verdad)
+  if (FIREBASE_API_KEY === 'TU_API_KEY_AQUI') return;
   try {
     setFirebaseStatus('loading');
-    const remote = await firestoreGet();
+    const remote = await rtdbGet();
     if (remote) {
       config = { ...config, ...remote };
       localStorage.setItem('rainwatch_config', JSON.stringify(config));
@@ -1039,16 +1008,14 @@ function saveConfig() {
   config.tgToken   = document.getElementById('tgToken').value.trim();
   config.tgChatId  = document.getElementById('tgChatId').value.trim();
 
-  // Save to localStorage immediately
   localStorage.setItem('rainwatch_config', JSON.stringify(config));
 
-  // Debounce Firestore writes (avoid writing on every keypress)
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     if (FIREBASE_API_KEY === 'TU_API_KEY_AQUI') return;
     try {
       setFirebaseStatus('loading');
-      await firestoreSet(config);
+      await rtdbSet(config);
       setFirebaseStatus('ok');
     } catch(e) {
       setFirebaseStatus('error', e.message);
@@ -1477,28 +1444,14 @@ function buildScript() {
   return `// RainWatch — check-rain.js
 // Ubicación: .github/scripts/check-rain.js
 
-const TG_TOKEN       = process.env.TG_TOKEN;
-const TG_CHAT_ID     = process.env.TG_CHAT_ID;
-const FIREBASE_KEY   = process.env.FIREBASE_API_KEY;
-const FIREBASE_PROJECT = 'lista-compra-9d6f5';
-const CONFIG_DOC = \`https://firestore.googleapis.com/v1/projects/\${FIREBASE_PROJECT}/databases/(default)/documents/rainwatch/config\`;
+const TG_TOKEN     = process.env.TG_TOKEN;
+const TG_CHAT_ID   = process.env.TG_CHAT_ID;
+const FIREBASE_KEY = process.env.FIREBASE_API_KEY;
+const RTDB_URL     = 'https://lista-compra-9d6f5-default-rtdb.europe-west1.firebasedatabase.app';
 
-if (!TG_TOKEN)     { console.error('Falta TG_TOKEN');     process.exit(1); }
-if (!TG_CHAT_ID)   { console.error('Falta TG_CHAT_ID');   process.exit(1); }
+if (!TG_TOKEN)     { console.error('Falta TG_TOKEN');        process.exit(1); }
+if (!TG_CHAT_ID)   { console.error('Falta TG_CHAT_ID');      process.exit(1); }
 if (!FIREBASE_KEY) { console.error('Falta FIREBASE_API_KEY'); process.exit(1); }
-
-function fromFirestore(fields) {
-  function parse(val) {
-    if ('stringValue'  in val) return val.stringValue;
-    if ('doubleValue'  in val) return val.doubleValue;
-    if ('integerValue' in val) return parseInt(val.integerValue);
-    if ('booleanValue' in val) return val.booleanValue;
-    if ('arrayValue'   in val) return (val.arrayValue.values || []).map(parse);
-    if ('mapValue'     in val) return fromFirestore(val.mapValue.fields || {});
-    return null;
-  }
-  return Object.fromEntries(Object.entries(fields || {}).map(([k,v]) => [k, parse(v)]));
-}
 
 const WMO = {
   0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
@@ -1516,10 +1469,11 @@ const WMO_EMOJI = {
 };
 
 async function loadConfig() {
-  const res = await fetch(\`\${CONFIG_DOC}?key=\${FIREBASE_KEY}\`);
-  if (!res.ok) throw new Error(\`Firestore error \${res.status}\`);
-  const doc = await res.json();
-  return fromFirestore(doc.fields);
+  const res = await fetch(\`\${RTDB_URL}/rainwatch/config.json?auth=\${FIREBASE_KEY}\`);
+  if (!res.ok) throw new Error(\`Firebase error \${res.status}\`);
+  const data = await res.json();
+  if (!data) throw new Error('No hay configuración en Firebase. Guarda la config desde la app primero.');
+  return data;
 }
 
 async function fetchWeather(m) {
@@ -1638,7 +1592,7 @@ loadConfig(); // async — loads localStorage first, then syncs from Firestore
 // ── Service Worker ──
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('sw.js')
       .then(reg => console.log('SW registrado:', reg.scope))
       .catch(err => console.log('SW error:', err));
   });
