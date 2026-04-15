@@ -2,7 +2,7 @@ name: RainWatch Daily Alert
 
 on:
   schedule:
-    - cron: '0 20 * * *'  # Ajusta la hora en UTC (8:00 UTC = 9:00 Canarias invierno / 8:00 verano)
+    - cron: '0 * * * *'  # Se ejecuta cada hora — la hora real se controla desde Firebase
   workflow_dispatch:      # Permite ejecutar manualmente desde GitHub
 
 jobs:
@@ -23,6 +23,5 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          THRESHOLD: ${{ secrets.THRESHOLD }}
-          MUNICIPALITIES: ${{ secrets.MUNICIPALITIES }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: node .github/scripts/check-rain.js
