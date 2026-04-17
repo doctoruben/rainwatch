@@ -33,29 +33,31 @@ async function loadConfig() {
   return data;
 }
 
-// Comprueba si la hora actual (UTC) coincide con la hora configurada en Firebase
-// sendTime se guarda como "HH:MM" en hora Canarias
-// Canarias: UTC+0 invierno, UTC+1 verano (WEST)
-function isTimeToRun(sendTime) {
+async function getLastSentDate() {
+  const res = await fetch(`${RTDB_URL}/rainwatch/lastSent.json?auth=${FIREBASE_KEY}`);
+  if (!res.ok) return null;
+  return await res.json(); // "YYYY-MM-DD" o null
+}
+
+async function setLastSentDate(dateStr) {
+  await fetch(`${RTDB_URL}/rainwatch/lastSent.json?auth=${FIREBASE_KEY}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dateStr)
+  });
+}
+
+function getCanariasTime() {
   const now = new Date();
-  const utcHour = now.getUTCHours();
-  const utcMin  = now.getUTCMinutes();
-
-  // Detectar si estamos en horario de verano (última domingo de marzo → última domingo de octubre)
-  // Aproximación: meses 4-10 (abril-octubre) = WEST = UTC+1
-  const month = now.getUTCMonth() + 1; // 1-12
-  const isWest = month >= 4 && month <= 10;
-  const offsetHours = isWest ? 1 : 0;
-
-  // Hora local Canarias
-  const localHour = (utcHour + offsetHours) % 24;
-  const localMin  = utcMin;
-
-  const [cfgHour, cfgMin] = sendTime.split(':').map(Number);
-
-  const match = localHour === cfgHour && localMin < 60; // ejecuta en cualquier minuto de esa hora
-  console.log(`Hora actual Canarias: ${String(localHour).padStart(2,'0')}:${String(localMin).padStart(2,'0')} | Hora configurada: ${sendTime} | ¿Ejecutar? ${match}`);
-  return match;
+  const month = now.getUTCMonth() + 1;
+  const isWest = month >= 4 && month <= 10; // horario de verano aproximado
+  const offsetMs = isWest ? 3600000 : 0;
+  const local = new Date(now.getTime() + offsetMs);
+  return {
+    hour: local.getUTCHours(),
+    minute: local.getUTCMinutes(),
+    dateStr: local.toISOString().slice(0, 10) // "YYYY-MM-DD"
+  };
 }
 
 async function fetchWeather(m) {
@@ -92,15 +94,29 @@ async function sendTelegram(text) {
   const MUNICIPALITIES = cfg.municipalities || [];
   const SEND_TIME      = cfg.sendTime || '08:00';
 
-  // 2. Comprobar si es la hora de enviar
-  if (!isTimeToRun(SEND_TIME)) {
-    console.log('No es la hora configurada. Saliendo sin enviar.');
+  const [cfgHour, cfgMin] = SEND_TIME.split(':').map(Number);
+  const { hour, minute, dateStr } = getCanariasTime();
+  const nowMinutes = hour * 60 + minute;
+  const cfgMinutes = cfgHour * 60 + cfgMin;
+
+  console.log(`Hora Canarias: ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')} | Hora configurada: ${SEND_TIME}`);
+
+  // 2. ¿Ha llegado la hora?
+  if (nowMinutes < cfgMinutes) {
+    console.log(`Aún no ha llegado la hora de envío. Faltan ${cfgMinutes - nowMinutes} minutos.`);
     process.exit(0);
   }
 
-  console.log(`✓ Es la hora de envío. Umbral: ${THRESHOLD}% | Municipios: ${MUNICIPALITIES.map(m => m.name).join(', ')}`);
+  // 3. ¿Ya se envió hoy?
+  const lastSent = await getLastSentDate();
+  if (lastSent === dateStr) {
+    console.log(`Ya se procesó hoy (${dateStr}). No se vuelve a enviar.`);
+    process.exit(0);
+  }
 
-  // 3. Consultar tiempo y construir mensaje
+  console.log(`✓ Hora alcanzada. Umbral: ${THRESHOLD}% | Municipios: ${MUNICIPALITIES.map(m => m.name).join(', ')}`);
+
+  // 4. Consultar tiempo y construir mensaje
   let header = '🛰 *RainWatch: Previsión de mañana*\n\n';
   let body = '';
   let alerts = false;
@@ -119,11 +135,15 @@ async function sendTelegram(text) {
     } catch(e) { console.error(`Error en ${m.name}:`, e.message); }
   }
 
-  // 4. Enviar si hay alertas
+  // 5. Enviar si hay alertas y marcar como enviado
   if (alerts) {
     await sendTelegram(header + body + `_Umbral: ${THRESHOLD}%_`);
     console.log('✅ Alerta enviada por Telegram.');
   } else {
     console.log(`✅ Sin alertas. Ningún municipio supera el ${THRESHOLD}%.`);
   }
+
+  // Marcar como procesado hoy independientemente de si hubo alertas
+  await setLastSentDate(dateStr);
+  console.log(`Marcado como procesado para ${dateStr}.`);
 })();
