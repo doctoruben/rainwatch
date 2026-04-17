@@ -2,8 +2,8 @@ name: RainWatch Daily Alert
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Se ejecuta cada hora — la hora real se controla desde Firebase
-  workflow_dispatch:      # Permite ejecutar manualmente desde GitHub
+    - cron: '0 */2 * * *'  # Cada 2 horas — la hora real se controla desde Firebase
+  workflow_dispatch:        # Permite ejecutar manualmente desde GitHub
 
 jobs:
   check-rain:
